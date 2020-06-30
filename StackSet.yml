@@ -1,0 +1,74 @@
+Parameters: 
+  S3Bucket:
+    Description: The S3 bucket containing the lambda function
+    Type: String
+  S3Key: 
+    Description: The S3 object(.zip file) containing lambda function
+    Type: String
+Resources:
+  OrgEC2MgmtFunction:
+    Type: AWS::Lambda::Function
+    Properties: 
+      Code: 
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Ref S3Key
+      Description: EC2 Management
+      FunctionName: OrgEC2Mgmt
+      Handler: lambda_handler.lambda_handler
+      MemorySize: 128
+      Role: 
+        Fn::GetAtt:
+          - OrgEC2MgmtRole
+          - "Arn"
+      Runtime: python3.8
+      Timeout: 300
+  OrgEC2MgmtRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: OrgEC2MgmtRole
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [lambda.amazonaws.com, events.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+        - PolicyName: OrgEC2MgmtLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: ["logs:CreateLogGroup",
+                "logs:CreateLogStream",
+                "logs:PutLogEvents",
+                "logs:CreateLogGroup"]
+                Resource: '*'
+        - PolicyName: OrgEC2Mgmt
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: [
+                "rds:StopDBCluster",
+                "ec2:DescribeInstances",
+                "ec2:DescribeRegions",
+                "rds:DescribeDBInstances",
+                "ec2:StopInstances",
+                "rds:StopDBInstance"]
+                Resource: '*'
+  OrgEC2Event:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: EC2 Management
+      Name: OrgEC2MgmtEvent
+      ScheduleExpression: "cron(0 0 * * ? *)"
+      State: ENABLED
+      RoleArn: !GetAtt OrgEC2MgmtRole.Arn
+      Targets:
+        -
+          Arn:
+            Fn::GetAtt:
+              - "OrgEC2MgmtFunction"
+              - "Arn"
+          Id: "OrgEC2MgmtFunction"
